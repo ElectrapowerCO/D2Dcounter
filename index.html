@@ -626,11 +626,16 @@
         });
         html += '</div>';
 
+        // Show Seats for Setters, Closed for Manager
+        var isManager = currentWorker.role === 'setter_manager';
+        var thirdMetricLabel = isManager ? 'Closed' : 'Seats';
+        var thirdMetricValue = isManager ? (data.closed || 0) : (data.seats || 0);
+        
         var total = Object.values(data).reduce(function(sum, v) { return sum + (v || 0); }, 0);
         html += '<div class="counter-summary"><div class="summary-item"><div class="summary-label">Total</div><div class="summary-value">' + total + '</div></div>';
         html += '<div class="summary-item"><div class="summary-label">Doors</div><div class="summary-value">' + (data.doors || 0) + '</div></div>';
         html += '<div class="summary-item"><div class="summary-label">Leads</div><div class="summary-value">' + (data.leads || 0) + '</div></div>';
-        html += '<div class="summary-item"><div class="summary-label">Closed</div><div class="summary-value green">' + (data.closed || 0) + '</div></div></div></div>';
+        html += '<div class="summary-item"><div class="summary-label">' + thirdMetricLabel + '</div><div class="summary-value green">' + thirdMetricValue + '</div></div></div></div>';
         container.innerHTML = html;
 
         document.querySelectorAll('.toggle-btn').forEach(function(btn) { btn.addEventListener('click', function() { counterView = this.dataset.view; renderCounter(container); }); });
