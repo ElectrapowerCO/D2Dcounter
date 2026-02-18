@@ -666,8 +666,23 @@
         try {
             var updateObj = {}; updateObj[field.dbKey] = newValue; updateObj['updated_at'] = new Date().toISOString();
             await supabase.from('kpi_entries').update(updateObj).eq('id', todayEntry.id);
-            showToast(delta > 0 ? '+1 ✓' : '-1 ✓');
-        } catch (err) { showToast('Error saving'); }
+            
+            // Create seat_approval when seats are incremented
+            if (key === 'seats' && delta > 0) {
+                await supabase.from('seat_approvals').insert([{
+                    worker_id: currentWorker.id,
+                    date: getTodayString(),
+                    count: 1,
+                    status: 'pending'
+                }]);
+                showToast('+1 Seat - Pending approval ✓');
+            } else {
+                showToast(delta > 0 ? '+1 ✓' : '-1 ✓');
+            }
+        } catch (err) { 
+            console.error('Error:', err);
+            showToast('Error saving'); 
+        }
         renderCounter(document.getElementById('mainContent'));
     }
 
