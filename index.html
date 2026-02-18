@@ -370,16 +370,18 @@
 
     async function loadAllData() {
         try {
-            var [clientsRes, paymentsRes, kpiRes, workersRes] = await Promise.all([
+            var [clientsRes, paymentsRes, kpiRes, workersRes, seatApprovalsRes] = await Promise.all([
                 supabase.from('clients').select('*').eq('worker_id', currentWorker.id).order('created_at', { ascending: false }),
                 supabase.from('payments').select('*').eq('worker_id', currentWorker.id).order('created_at', { ascending: false }),
                 supabase.from('kpi_entries').select('*').eq('worker_id', currentWorker.id).order('date', { ascending: false }),
-                supabase.from('workers').select('*').eq('is_active', true)
+                supabase.from('workers').select('*').eq('is_active', true),
+                supabase.from('seat_approvals').select('date').eq('worker_id', currentWorker.id)
             ]);
             clients = clientsRes.data || [];
             payments = paymentsRes.data || [];
             kpiEntries = kpiRes.data || [];
             allWorkers = workersRes.data || [];
+            var existingSeatApprovalDates = (seatApprovalsRes.data || []).map(function(s) { return s.date; });
             
             var today = getTodayString();
             todayEntry = kpiEntries.find(function(e) { return e.date === today; });
@@ -391,7 +393,38 @@
                 }]).select().single();
                 if (insertResult.data) { todayEntry = insertResult.data; kpiEntries.unshift(todayEntry); }
             }
+            
+            // Check for previous days with seats that haven't been submitted
+            await submitPreviousDaysSeats(existingSeatApprovalDates);
+            
         } catch (err) { console.error('Error loading data:', err); }
+    }
+    
+    async function submitPreviousDaysSeats(existingSeatApprovalDates) {
+        var today = getTodayString();
+        
+        // Find entries from previous days with seats > 0 that don't have a seat_approval yet
+        var entriesToSubmit = kpiEntries.filter(function(entry) {
+            return entry.date < today && 
+                   entry.seats > 0 && 
+                   existingSeatApprovalDates.indexOf(entry.date) === -1;
+        });
+        
+        // Create seat_approval for each day
+        for (var i = 0; i < entriesToSubmit.length; i++) {
+            var entry = entriesToSubmit[i];
+            try {
+                await supabase.from('seat_approvals').insert([{
+                    worker_id: currentWorker.id,
+                    date: entry.date,
+                    count: entry.seats,
+                    status: 'pending'
+                }]);
+                console.log('Submitted ' + entry.seats + ' seats from ' + entry.date);
+            } catch (err) {
+                console.error('Error submitting seats for ' + entry.date, err);
+            }
+        }
     }
 
     function switchTab(tab) {
@@ -671,19 +704,7 @@
         try {
             var updateObj = {}; updateObj[field.dbKey] = newValue; updateObj['updated_at'] = new Date().toISOString();
             await supabase.from('kpi_entries').update(updateObj).eq('id', todayEntry.id);
-            
-            // Create seat_approval when seats are incremented
-            if (key === 'seats' && delta > 0) {
-                await supabase.from('seat_approvals').insert([{
-                    worker_id: currentWorker.id,
-                    date: getTodayString(),
-                    count: 1,
-                    status: 'pending'
-                }]);
-                showToast('+1 Seat - Pending approval ✓');
-            } else {
-                showToast(delta > 0 ? '+1 ✓' : '-1 ✓');
-            }
+            showToast(delta > 0 ? '+1 ✓' : '-1 ✓');
         } catch (err) { 
             console.error('Error:', err);
             showToast('Error saving'); 
