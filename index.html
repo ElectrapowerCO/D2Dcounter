@@ -259,6 +259,10 @@
                 <span class="nav-tab-icon">📋</span>
                 <span class="nav-tab-label">History</span>
             </div>
+            <div class="nav-tab" data-tab="kpis" id="kpisTab" style="display:none">
+                <span class="nav-tab-icon">📈</span>
+                <span class="nav-tab-label">Team</span>
+            </div>
         </nav>
     </div>
 
@@ -371,9 +375,17 @@
         var roleLabel = currentWorker.role === 'setter_manager' ? 'Manager' : 'Setter';
         document.getElementById('userRole').textContent = roleLabel;
         
+        // Show KPIs tab only for setter_manager
+        if (currentWorker.role === 'setter_manager') {
+            document.getElementById('kpisTab').style.display = 'flex';
+        }
+        
         await loadAllData();
         renderCurrentTab();
     }
+
+    var allKpiEntries = []; // All KPI entries for manager view
+    var allClients = []; // All clients for manager view
 
     async function loadAllData() {
         try {
@@ -403,6 +415,16 @@
             
             // Check for previous days with seats that haven't been submitted
             await submitPreviousDaysSeats(existingSeatApprovalDates);
+            
+            // If manager, load all KPI entries and clients
+            if (currentWorker.role === 'setter_manager') {
+                var [allKpiRes, allClientsRes] = await Promise.all([
+                    supabase.from('kpi_entries').select('*').order('date', { ascending: false }),
+                    supabase.from('clients').select('*').order('created_at', { ascending: false })
+                ]);
+                allKpiEntries = allKpiRes.data || [];
+                allClients = allClientsRes.data || [];
+            }
             
         } catch (err) { console.error('Error loading data:', err); }
     }
@@ -447,6 +469,7 @@
             case 'clients': renderClients(container); break;
             case 'counter': renderCounter(container); break;
             case 'history': renderHistory(container); break;
+            case 'kpis': renderTeamKpis(container); break;
         }
     }
 
@@ -752,6 +775,110 @@
         } else {
             html += '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">No payments yet</div><p>Your payment history will appear here</p></div>';
         }
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    // Team KPIs view for Manager
+    function renderTeamKpis(container) {
+        if (currentWorker.role !== 'setter_manager') {
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-title">Access Denied</div><p>Only managers can view team KPIs</p></div>';
+            return;
+        }
+        
+        var setters = allWorkers.filter(function(w) { return w.role === 'setter' && w.is_active; });
+        
+        // Calculate totals for each worker
+        var workerStats = setters.map(function(worker) {
+            var workerEntries = allKpiEntries.filter(function(e) { return e.worker_id === worker.id; });
+            var workerClients = allClients.filter(function(c) { return c.worker_id === worker.id; });
+            var totals = { doors: 0, conversations: 0, conv_ho: 0, leads: 0, appointments: 0, seats: 0, closed: 0, dq: 0 };
+            workerEntries.forEach(function(e) {
+                totals.doors += e.doors || 0;
+                totals.conversations += e.conversations || 0;
+                totals.conv_ho += e.conv_ho || 0;
+                totals.leads += e.leads || 0;
+                totals.appointments += e.appointments || 0;
+                totals.seats += e.seats || 0;
+                totals.closed += e.closed || 0;
+                totals.dq += e.dq || 0;
+            });
+            
+            // Get this month's deals
+            var monthStart = getFirstDayOfMonth();
+            var monthEnd = getLastDayOfMonth();
+            var monthlyDeals = workerClients.filter(function(c) {
+                return c.sale_date >= monthStart && c.sale_date <= monthEnd;
+            }).length;
+            
+            return {
+                worker: worker,
+                totals: totals,
+                clients: workerClients.length,
+                monthlyDeals: monthlyDeals,
+                convRate: totals.doors > 0 ? ((totals.seats / totals.doors) * 100).toFixed(1) : 0
+            };
+        });
+        
+        // Calculate team totals
+        var teamTotals = { doors: 0, conversations: 0, leads: 0, seats: 0, closed: 0 };
+        workerStats.forEach(function(ws) {
+            teamTotals.doors += ws.totals.doors;
+            teamTotals.conversations += ws.totals.conversations;
+            teamTotals.leads += ws.totals.leads;
+            teamTotals.seats += ws.totals.seats;
+            teamTotals.closed += ws.totals.closed;
+        });
+        
+        var currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        
+        var html = '<div class="wallet-container">';
+        
+        // Team Summary
+        html += '<div class="section-title" style="margin-bottom:1rem">📈 Team Overview</div>';
+        html += '<div class="earnings-grid">';
+        html += '<div class="earning-card"><div class="earning-label">Total Doors</div><div class="earning-value purple">' + teamTotals.doors.toLocaleString() + '</div></div>';
+        html += '<div class="earning-card"><div class="earning-label">Total Leads</div><div class="earning-value yellow">' + teamTotals.leads.toLocaleString() + '</div></div>';
+        html += '<div class="earning-card"><div class="earning-label">Total Seats</div><div class="earning-value green">' + teamTotals.seats.toLocaleString() + '</div></div>';
+        html += '<div class="earning-card"><div class="earning-label">Active Setters</div><div class="earning-value cyan">' + setters.length + '</div></div>';
+        html += '</div>';
+        
+        // Individual Setter Performance
+        html += '<div class="section-title" style="margin-top:1.5rem;margin-bottom:1rem">👥 Setter Performance (' + currentMonth + ')</div>';
+        
+        if (workerStats.length > 0) {
+            // Sort by monthly deals descending
+            workerStats.sort(function(a, b) { return b.monthlyDeals - a.monthlyDeals; });
+            
+            workerStats.forEach(function(ws, index) {
+                var rankIcon = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '▪️';
+                var minDeals = ws.worker.min_deals_required || 4;
+                var qualifies = ws.monthlyDeals >= minDeals;
+                var statusColor = qualifies ? 'var(--accent-green)' : 'var(--accent-red)';
+                
+                html += '<div class="earning-card full" style="margin-bottom:0.75rem">';
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">';
+                html += '<div style="display:flex;align-items:center;gap:0.5rem">';
+                html += '<span style="font-size:1.2rem">' + rankIcon + '</span>';
+                html += '<span style="font-weight:600">' + ws.worker.name + '</span>';
+                html += '</div>';
+                html += '<div style="text-align:right">';
+                html += '<div style="font-size:1.25rem;font-weight:700;color:' + statusColor + '">' + ws.monthlyDeals + ' deals</div>';
+                html += '<div style="font-size:0.7rem;color:var(--text-dim)">' + (qualifies ? '✓ Qualifies' : minDeals - ws.monthlyDeals + ' more needed') + '</div>';
+                html += '</div></div>';
+                
+                html += '<div style="display:flex;gap:1rem;font-size:0.8rem;color:var(--text-secondary)">';
+                html += '<span>Doors: <strong>' + ws.totals.doors + '</strong></span>';
+                html += '<span>Leads: <strong>' + ws.totals.leads + '</strong></span>';
+                html += '<span>Seats: <strong>' + ws.totals.seats + '</strong></span>';
+                html += '<span>Conv: <strong>' + ws.convRate + '%</strong></span>';
+                html += '</div>';
+                html += '</div>';
+            });
+        } else {
+            html += '<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-title">No setters yet</div></div>';
+        }
+        
         html += '</div>';
         container.innerHTML = html;
     }
