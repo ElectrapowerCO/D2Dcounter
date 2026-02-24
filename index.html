@@ -697,8 +697,8 @@
     }
 
     function renderCounter(container) {
-        var data = counterView === 'today' ? getTodayData() : getAllTimeData();
-        var disabled = counterView === 'allTime';
+        var data = counterView === 'today' ? getTodayData() : counterView === 'yesterday' ? getYesterdayData() : getAllTimeData();
+        var disabled = counterView !== 'today';
         var seatBonusRate = currentWorker.seat_bonus !== undefined ? Number(currentWorker.seat_bonus) : 100;
         
         // Update KPI_FIELDS subtitle for seats with personalized bonus
@@ -710,8 +710,11 @@
         });
 
         var html = '<div class="counter-container">';
-        html += '<div class="view-toggle"><button class="toggle-btn' + (counterView === 'today' ? ' active' : '') + '" data-view="today">Today</button>';
-        html += '<button class="toggle-btn' + (counterView === 'allTime' ? ' active' : '') + '" data-view="allTime">All Time</button></div>';
+        html += '<div class="view-toggle">';
+        html += '<button class="toggle-btn' + (counterView === 'today' ? ' active' : '') + '" data-view="today">Today</button>';
+        html += '<button class="toggle-btn' + (counterView === 'yesterday' ? ' active' : '') + '" data-view="yesterday">Yesterday</button>';
+        html += '<button class="toggle-btn' + (counterView === 'allTime' ? ' active' : '') + '" data-view="allTime">All Time</button>';
+        html += '</div>';
 
         html += '<div class="counter-grid">';
         kpiFieldsWithPersonalized.forEach(function(f) {
@@ -743,6 +746,21 @@
         if (!todayEntry) return {};
         var data = {};
         KPI_FIELDS.forEach(function(f) { data[f.key] = todayEntry[f.dbKey] || 0; });
+        return data;
+    }
+
+    function getYesterdayString() {
+        var d = new Date();
+        d.setDate(d.getDate() - 1);
+        return d.toISOString().split('T')[0];
+    }
+
+    function getYesterdayData() {
+        var yesterday = getYesterdayString();
+        var yesterdayEntry = kpiEntries.find(function(e) { return e.date === yesterday; });
+        if (!yesterdayEntry) return {};
+        var data = {};
+        KPI_FIELDS.forEach(function(f) { data[f.key] = yesterdayEntry[f.dbKey] || 0; });
         return data;
     }
 
