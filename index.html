@@ -466,17 +466,20 @@
                    existingSeatApprovalDates.indexOf(entry.date) === -1;
         });
         
-        // Create seat_approval for each day
+        // Create individual seat_approval for EACH seat (not grouped)
         for (var i = 0; i < entriesToSubmit.length; i++) {
             var entry = entriesToSubmit[i];
             try {
-                await supabase.from('seat_approvals').insert([{
-                    worker_id: currentWorker.id,
-                    date: entry.date,
-                    count: entry.seats,
-                    status: 'pending'
-                }]);
-                console.log('Submitted ' + entry.seats + ' seats from ' + entry.date);
+                // Create one record per seat so admin can approve/reject individually
+                for (var s = 0; s < entry.seats; s++) {
+                    await supabase.from('seat_approvals').insert([{
+                        worker_id: currentWorker.id,
+                        date: entry.date,
+                        count: 1,
+                        status: 'pending'
+                    }]);
+                }
+                console.log('Submitted ' + entry.seats + ' individual seats from ' + entry.date);
             } catch (err) {
                 console.error('Error submitting seats for ' + entry.date, err);
             }
