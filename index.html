@@ -340,10 +340,29 @@
 
     var STATUS_ORDER = ['hold', 'contract_signed', 'survey_done', 'engineering', 'permits', 'installation', 'funded'];
 
-    function getTodayString() { return new Date().toISOString().split('T')[0]; }
-    function getFirstDayOfMonth() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]; }
-    function getLastDayOfMonth() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]; }
-    function getWeekStart() { var d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toISOString().split('T')[0]; }
+    // Get current date in Florida timezone (Eastern Time)
+    function getFloridaDate() {
+        return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    }
+    
+    function getTodayString() { 
+        var d = getFloridaDate();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function getFirstDayOfMonth() { 
+        var d = getFloridaDate(); 
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-01';
+    }
+    function getLastDayOfMonth() { 
+        var d = getFloridaDate();
+        var lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
+    }
+    function getWeekStart() { 
+        var d = getFloridaDate(); 
+        d.setDate(d.getDate() - d.getDay()); 
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
     function getInitials(name) { return name.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase().slice(0, 2); }
     function formatDate(d) { if (!d) return '-'; return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
     function formatCurrency(amount) { return '$' + Number(amount || 0).toFixed(0); }
@@ -753,9 +772,9 @@
     }
 
     function getYesterdayString() {
-        var d = new Date();
+        var d = getFloridaDate();
         d.setDate(d.getDate() - 1);
-        return d.toISOString().split('T')[0];
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     }
 
     function getYesterdayData() {
