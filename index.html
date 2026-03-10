@@ -546,7 +546,7 @@
         function getClientCommission(client) {
             if (isCommissionOnly) {
                 var systemSize = client.system_size || 0;
-                var m2 = systemSize >= 11.6 ? m2Tier2 : m2Tier1;
+                var m2 = systemSize >= 11600 ? m2Tier2 : m2Tier1;
                 return m1Commission + m2;
             }
             return fundedCommissionRate;
@@ -555,13 +555,13 @@
         // Helper function to get M2 only (for funded clients)
         function getM2Commission(client) {
             var systemSize = client.system_size || 0;
-            return systemSize >= 11.6 ? m2Tier2 : m2Tier1;
+            return systemSize >= 11600 ? m2Tier2 : m2Tier1;
         }
         
         // Helper function to get tier label
         function getTierLabel(client) {
             var systemSize = client.system_size || 0;
-            return systemSize >= 11.6 ? 'Tier 2' : 'Tier 1';
+            return systemSize >= 11600 ? 'Tier 2' : 'Tier 1';
         }
         
         var pendingSeatBonus = payments.filter(function(p) { return p.type === 'seat_bonus' && p.status === 'pending'; }).reduce(function(sum, p) { return sum + Number(p.amount); }, 0);
@@ -706,7 +706,7 @@
         function getClientCommission(client) {
             if (isCommissionOnly) {
                 var systemSize = client.system_size || 0;
-                var m2 = systemSize >= 11.6 ? m2Tier2 : m2Tier1;
+                var m2 = systemSize >= 11600 ? m2Tier2 : m2Tier1;
                 return m1Commission + m2;
             }
             return fundedCommissionRate;
@@ -727,7 +727,7 @@
                 var progressColor = client.status === 'hold' ? 'red' : client.status === 'funded' ? 'green' : statusIndex < 3 ? 'purple' : statusIndex < 5 ? 'yellow' : 'cyan';
                 var commission = getClientCommission(client);
                 var systemSize = client.system_size || 0;
-                var tierLabel = isCommissionOnly ? (systemSize >= 11.6 ? ' T2' : ' T1') : '';
+                var tierLabel = isCommissionOnly ? (systemSize >= 11600 ? ' T2' : ' T1') : '';
                 html += '<div class="client-card" data-client-id="' + client.id + '">';
                 html += '<div class="client-card-header"><div><div class="client-name">' + client.first_name + ' ' + client.last_name + '</div>';
                 html += '<div class="client-date">Sale: ' + formatDate(client.sale_date) + (systemSize ? ' • ' + systemSize + 'kW' : '') + '</div></div>';
@@ -760,8 +760,8 @@
         var fundedCommissionRate = currentWorker.funded_commission !== undefined ? Number(currentWorker.funded_commission) : 500;
         
         var systemSize = client.system_size || 0;
-        var m2 = systemSize >= 11.6 ? m2Tier2 : m2Tier1;
-        var tierLabel = systemSize >= 11.6 ? 'Tier 2' : 'Tier 1';
+        var m2 = systemSize >= 11600 ? m2Tier2 : m2Tier1;
+        var tierLabel = systemSize >= 11600 ? 'Tier 2' : 'Tier 1';
         var totalCommission = isCommissionOnly ? (m1Commission + m2) : fundedCommissionRate;
 
         var html = '<div class="modal-header"><button class="modal-back" id="closeClientModal">←</button>';
