@@ -536,9 +536,37 @@
         var overrideAmount = currentWorker.override_amount !== undefined ? Number(currentWorker.override_amount) : 500;
         var minDeals = currentWorker.min_deals_required || (currentWorker.role === 'setter_manager' ? 8 : 4);
         
+        // Commission Only scheme values
+        var isCommissionOnly = currentWorker.comp_scheme === 'commission_only';
+        var m1Commission = currentWorker.m1_commission !== undefined ? Number(currentWorker.m1_commission) : 500;
+        var m2Tier1 = currentWorker.m2_tier1 !== undefined ? Number(currentWorker.m2_tier1) : 500;
+        var m2Tier2 = currentWorker.m2_tier2 !== undefined ? Number(currentWorker.m2_tier2) : 1500;
+        
+        // Helper function to calculate commission for a client
+        function getClientCommission(client) {
+            if (isCommissionOnly) {
+                var systemSize = client.system_size || 0;
+                var m2 = systemSize >= 11.6 ? m2Tier2 : m2Tier1;
+                return m1Commission + m2;
+            }
+            return fundedCommissionRate;
+        }
+        
+        // Helper function to get M2 only (for funded clients)
+        function getM2Commission(client) {
+            var systemSize = client.system_size || 0;
+            return systemSize >= 11.6 ? m2Tier2 : m2Tier1;
+        }
+        
+        // Helper function to get tier label
+        function getTierLabel(client) {
+            var systemSize = client.system_size || 0;
+            return systemSize >= 11.6 ? 'Tier 2' : 'Tier 1';
+        }
+        
         var pendingSeatBonus = payments.filter(function(p) { return p.type === 'seat_bonus' && p.status === 'pending'; }).reduce(function(sum, p) { return sum + Number(p.amount); }, 0);
-        var pendingCommissions = payments.filter(function(p) { return p.type === 'project_commission' && p.status === 'pending'; }).reduce(function(sum, p) { return sum + Number(p.amount); }, 0);
-        var futureCommissions = clients.filter(function(c) { return c.status !== 'funded'; }).length * fundedCommissionRate;
+        var pendingCommissions = payments.filter(function(p) { return (p.type === 'project_commission' || p.type === 'm1_commission' || p.type === 'm2_commission') && p.status === 'pending'; }).reduce(function(sum, p) { return sum + Number(p.amount); }, 0);
+        var futureCommissions = clients.filter(function(c) { return c.status !== 'funded'; }).reduce(function(sum, c) { return sum + getClientCommission(c); }, 0);
         var totalPaid = payments.filter(function(p) { return p.status === 'paid'; }).reduce(function(sum, p) { return sum + Number(p.amount); }, 0);
         var weeklyTotal = baseSalary + pendingSeatBonus;
         
@@ -617,12 +645,37 @@
 
         // Upcoming payments
         var pendingItems = [];
+        
+        // Pending M1 commissions
+        payments.filter(function(p) { return p.type === 'm1_commission' && p.status === 'pending'; }).forEach(function(p) {
+            var client = clients.find(function(c) { return c.id === p.reference_id; });
+            pendingItems.push({ title: 'M1 Commission', subtitle: client ? client.first_name + ' ' + client.last_name : 'Client', amount: p.amount, type: 'commission' });
+        });
+        
+        // Pending M2 commissions
+        payments.filter(function(p) { return p.type === 'm2_commission' && p.status === 'pending'; }).forEach(function(p) {
+            var client = clients.find(function(c) { return c.id === p.reference_id; });
+            var tierLabel = client ? getTierLabel(client) : '';
+            pendingItems.push({ title: 'M2 Commission' + (tierLabel ? ' (' + tierLabel + ')' : ''), subtitle: client ? client.first_name + ' ' + client.last_name : 'Client', amount: p.amount, type: 'commission' });
+        });
+        
+        // Pending standard project commissions
         payments.filter(function(p) { return p.type === 'project_commission' && p.status === 'pending'; }).forEach(function(p) {
             var client = clients.find(function(c) { return c.id === p.reference_id; });
             pendingItems.push({ title: 'Project Commission', subtitle: client ? client.first_name + ' ' + client.last_name : 'Client', amount: p.amount, type: 'commission' });
         });
+        
+        // Future commissions (not yet funded clients)
         clients.filter(function(c) { return c.status !== 'funded'; }).forEach(function(c) {
-            pendingItems.push({ title: c.first_name + ' ' + c.last_name, subtitle: STATUS_LABELS[c.status] + ' → ' + formatCurrency(fundedCommissionRate) + ' when funded', amount: fundedCommissionRate, type: 'future' });
+            var commission = getClientCommission(c);
+            var subtitle;
+            if (isCommissionOnly) {
+                var tierLabel = getTierLabel(c);
+                subtitle = STATUS_LABELS[c.status] + ' → $' + m1Commission + ' M1 + $' + getM2Commission(c) + ' M2 (' + tierLabel + ')';
+            } else {
+                subtitle = STATUS_LABELS[c.status] + ' → ' + formatCurrency(fundedCommissionRate) + ' when funded';
+            }
+            pendingItems.push({ title: c.first_name + ' ' + c.last_name, subtitle: subtitle, amount: commission, type: 'future' });
         });
 
         if (pendingItems.length > 0) {
@@ -642,6 +695,22 @@
     function renderClients(container) {
         var activeClients = clients.filter(function(c) { return c.status !== 'funded'; });
         var fundedClients = clients.filter(function(c) { return c.status === 'funded'; });
+        
+        // Commission Only scheme values
+        var isCommissionOnly = currentWorker.comp_scheme === 'commission_only';
+        var m1Commission = currentWorker.m1_commission !== undefined ? Number(currentWorker.m1_commission) : 500;
+        var m2Tier1 = currentWorker.m2_tier1 !== undefined ? Number(currentWorker.m2_tier1) : 500;
+        var m2Tier2 = currentWorker.m2_tier2 !== undefined ? Number(currentWorker.m2_tier2) : 1500;
+        var fundedCommissionRate = currentWorker.funded_commission !== undefined ? Number(currentWorker.funded_commission) : 500;
+        
+        function getClientCommission(client) {
+            if (isCommissionOnly) {
+                var systemSize = client.system_size || 0;
+                var m2 = systemSize >= 11.6 ? m2Tier2 : m2Tier1;
+                return m1Commission + m2;
+            }
+            return fundedCommissionRate;
+        }
 
         var html = '<div class="clients-container">';
         html += '<div class="client-stats">';
@@ -656,11 +725,13 @@
                 var statusIndex = STATUS_ORDER.indexOf(client.status);
                 var progress = client.status === 'hold' ? 5 : ((statusIndex + 1) / STATUS_ORDER.length) * 100;
                 var progressColor = client.status === 'hold' ? 'red' : client.status === 'funded' ? 'green' : statusIndex < 3 ? 'purple' : statusIndex < 5 ? 'yellow' : 'cyan';
-                var fundedCommissionRate = currentWorker.funded_commission !== undefined ? Number(currentWorker.funded_commission) : 500;
+                var commission = getClientCommission(client);
+                var systemSize = client.system_size || 0;
+                var tierLabel = isCommissionOnly ? (systemSize >= 11.6 ? ' T2' : ' T1') : '';
                 html += '<div class="client-card" data-client-id="' + client.id + '">';
                 html += '<div class="client-card-header"><div><div class="client-name">' + client.first_name + ' ' + client.last_name + '</div>';
-                html += '<div class="client-date">Sale: ' + formatDate(client.sale_date) + '</div></div>';
-                html += '<div class="client-commission">' + (client.status === 'funded' ? '✓ ' : '') + formatCurrency(fundedCommissionRate) + '</div></div>';
+                html += '<div class="client-date">Sale: ' + formatDate(client.sale_date) + (systemSize ? ' • ' + systemSize + 'kW' : '') + '</div></div>';
+                html += '<div class="client-commission">' + (client.status === 'funded' ? '✓ ' : '') + formatCurrency(commission) + tierLabel + '</div></div>';
                 html += '<div class="progress-bar"><div class="progress-fill ' + progressColor + '" style="width:' + progress + '%"></div></div>';
                 html += '<div class="client-status"><span class="status-badge status-' + client.status + '">' + STATUS_LABELS[client.status] + '</span></div></div>';
             });
@@ -680,7 +751,18 @@
         var client = clients.find(function(c) { return c.id === clientId; });
         if (!client) return;
         var statusIndex = STATUS_ORDER.indexOf(client.status);
+        
+        // Commission Only scheme values
+        var isCommissionOnly = currentWorker.comp_scheme === 'commission_only';
+        var m1Commission = currentWorker.m1_commission !== undefined ? Number(currentWorker.m1_commission) : 500;
+        var m2Tier1 = currentWorker.m2_tier1 !== undefined ? Number(currentWorker.m2_tier1) : 500;
+        var m2Tier2 = currentWorker.m2_tier2 !== undefined ? Number(currentWorker.m2_tier2) : 1500;
         var fundedCommissionRate = currentWorker.funded_commission !== undefined ? Number(currentWorker.funded_commission) : 500;
+        
+        var systemSize = client.system_size || 0;
+        var m2 = systemSize >= 11.6 ? m2Tier2 : m2Tier1;
+        var tierLabel = systemSize >= 11.6 ? 'Tier 2' : 'Tier 1';
+        var totalCommission = isCommissionOnly ? (m1Commission + m2) : fundedCommissionRate;
 
         var html = '<div class="modal-header"><button class="modal-back" id="closeClientModal">←</button>';
         html += '<div class="modal-title">' + client.first_name + ' ' + client.last_name + '</div></div>';
@@ -689,7 +771,13 @@
         html += '<div class="detail-section"><div class="detail-label">Email</div><div class="detail-value">' + (client.email || 'Not provided') + '</div></div>';
         html += '<div class="detail-section"><div class="detail-label">Phone</div><div class="detail-value">' + (client.phone || 'Not provided') + '</div></div>';
         html += '<div class="detail-section"><div class="detail-label">Sale Date</div><div class="detail-value">' + formatDate(client.sale_date) + '</div></div>';
-        html += '<div class="detail-section"><div class="detail-label">Commission</div><div class="detail-value" style="color:var(--accent-green);font-weight:700">' + formatCurrency(fundedCommissionRate) + '</div></div>';
+        if (isCommissionOnly) {
+            html += '<div class="detail-section"><div class="detail-label">System Size</div><div class="detail-value">' + (systemSize ? systemSize + ' kW (' + tierLabel + ')' : 'Not set') + '</div></div>';
+            html += '<div class="detail-section"><div class="detail-label">M1 Commission</div><div class="detail-value" style="color:var(--accent-cyan)">' + formatCurrency(m1Commission) + '</div></div>';
+            html += '<div class="detail-section"><div class="detail-label">M2 Commission</div><div class="detail-value" style="color:var(--accent-green)">' + formatCurrency(m2) + '</div></div>';
+        } else {
+            html += '<div class="detail-section"><div class="detail-label">Commission</div><div class="detail-value" style="color:var(--accent-green);font-weight:700">' + formatCurrency(fundedCommissionRate) + '</div></div>';
+        }
         html += '</div>';
 
         html += '<div class="detail-section" style="margin-top:1.5rem"><div class="detail-label">Project Progress</div><div class="progress-steps">';
