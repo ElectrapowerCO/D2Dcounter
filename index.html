@@ -587,14 +587,15 @@
         
         var html = '<div class="wallet-container">';
         
-        // Main balance card
+        // Main balance card - don't include baseSalary for commission only
+        var weeklyDisplay = isCommissionOnly ? pendingSeatBonus : weeklyTotal;
         html += '<div class="balance-card"><div class="balance-label">This Week\'s Earnings</div>';
-        html += '<div class="balance-amount">' + formatCurrency(weeklyTotal) + '</div>';
+        html += '<div class="balance-amount">' + formatCurrency(weeklyDisplay) + '</div>';
         html += '<div class="balance-sub">+ ' + formatCurrency(pendingCommissions) + ' pending commissions</div></div>';
 
         // Earnings grid with personalized rates
         html += '<div class="earnings-grid">';
-        if (baseSalary > 0) {
+        if (baseSalary > 0 && !isCommissionOnly) {
             html += '<div class="earning-card"><div class="earning-label">Base Salary</div><div class="earning-value purple">' + formatCurrency(baseSalary) + '</div><div class="earning-detail">Weekly fixed</div></div>';
         }
         html += '<div class="earning-card"><div class="earning-label">Seat Bonuses</div><div class="earning-value green">' + formatCurrency(pendingSeatBonus) + '</div><div class="earning-detail">' + formatCurrency(seatBonusRate) + ' per seat</div></div>';
