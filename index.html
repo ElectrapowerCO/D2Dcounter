@@ -544,9 +544,19 @@
         var m2Tier1 = currentWorker.m2_tier1 !== undefined ? Number(currentWorker.m2_tier1) : 500;
         var m2Tier2 = currentWorker.m2_tier2 !== undefined ? Number(currentWorker.m2_tier2) : 1500;
         
+        // Helper function to check if client should use commission only scheme
+        function isClientCommissionOnly(client) {
+            // If client has sale_comp_scheme set, use that (historical)
+            if (client.sale_comp_scheme) {
+                return client.sale_comp_scheme === 'commission_only';
+            }
+            // Otherwise use worker's current scheme
+            return isCommissionOnly;
+        }
+        
         // Helper function to calculate commission for a client
         function getClientCommission(client) {
-            if (isCommissionOnly) {
+            if (isClientCommissionOnly(client)) {
                 var systemSize = client.system_size || 0;
                 var m2 = systemSize >= 11600 ? m2Tier2 : m2Tier1;
                 return m1Commission + m2;
@@ -674,7 +684,7 @@
         clients.filter(function(c) { return c.status !== 'funded' && c.status !== 'cancelled'; }).forEach(function(c) {
             var commission = getClientCommission(c);
             var subtitle;
-            if (isCommissionOnly) {
+            if (isClientCommissionOnly(c)) {
                 var tierLabel = getTierLabel(c);
                 subtitle = STATUS_LABELS[c.status] + ' → $' + m1Commission + ' M1 + $' + getM2Commission(c) + ' M2 (' + tierLabel + ')';
             } else {
@@ -709,8 +719,16 @@
         var m2Tier2 = currentWorker.m2_tier2 !== undefined ? Number(currentWorker.m2_tier2) : 1500;
         var fundedCommissionRate = currentWorker.funded_commission !== undefined ? Number(currentWorker.funded_commission) : 500;
         
+        // Helper function to check if client should use commission only scheme
+        function isClientCommissionOnly(client) {
+            if (client.sale_comp_scheme) {
+                return client.sale_comp_scheme === 'commission_only';
+            }
+            return isCommissionOnly;
+        }
+        
         function getClientCommission(client) {
-            if (isCommissionOnly) {
+            if (isClientCommissionOnly(client)) {
                 var systemSize = client.system_size || 0;
                 var m2 = systemSize >= 11600 ? m2Tier2 : m2Tier1;
                 return m1Commission + m2;
@@ -729,15 +747,19 @@
             html += '<div class="section-title">Your Clients</div><div class="client-list">';
             clients.forEach(function(client) {
                 var statusIndex = STATUS_ORDER.indexOf(client.status);
-                var progress = client.status === 'hold' ? 5 : ((statusIndex + 1) / STATUS_ORDER.length) * 100;
-                var progressColor = client.status === 'hold' ? 'red' : client.status === 'funded' ? 'green' : statusIndex < 3 ? 'purple' : statusIndex < 5 ? 'yellow' : 'cyan';
+                var progress = client.status === 'hold' ? 5 : client.status === 'cancelled' ? 0 : ((statusIndex + 1) / STATUS_ORDER.length) * 100;
+                var progressColor = client.status === 'hold' || client.status === 'cancelled' ? 'red' : client.status === 'funded' ? 'green' : statusIndex < 3 ? 'purple' : statusIndex < 5 ? 'yellow' : 'cyan';
                 var commission = getClientCommission(client);
                 var systemSize = client.system_size || 0;
-                var tierLabel = isCommissionOnly ? (systemSize >= 11600 ? ' T2' : ' T1') : '';
+                var tierLabel = isClientCommissionOnly(client) ? (systemSize >= 11600 ? ' T2' : ' T1') : '';
                 html += '<div class="client-card" data-client-id="' + client.id + '">';
                 html += '<div class="client-card-header"><div><div class="client-name">' + client.first_name + ' ' + client.last_name + '</div>';
                 html += '<div class="client-date">Sale: ' + formatDate(client.sale_date) + (systemSize ? ' • ' + systemSize + 'kW' : '') + '</div></div>';
-                html += '<div class="client-commission">' + (client.status === 'funded' ? '✓ ' : '') + formatCurrency(commission) + tierLabel + '</div></div>';
+                if (client.status !== 'cancelled') {
+                    html += '<div class="client-commission">' + (client.status === 'funded' ? '✓ ' : '') + formatCurrency(commission) + tierLabel + '</div></div>';
+                } else {
+                    html += '<div class="client-commission" style="color:var(--accent-red)">Cancelled</div></div>';
+                }
                 html += '<div class="progress-bar"><div class="progress-fill ' + progressColor + '" style="width:' + progress + '%"></div></div>';
                 html += '<div class="client-status"><span class="status-badge status-' + client.status + '">' + STATUS_LABELS[client.status] + '</span></div></div>';
             });
@@ -765,10 +787,13 @@
         var m2Tier2 = currentWorker.m2_tier2 !== undefined ? Number(currentWorker.m2_tier2) : 1500;
         var fundedCommissionRate = currentWorker.funded_commission !== undefined ? Number(currentWorker.funded_commission) : 500;
         
+        // Check if this specific client uses commission only (based on sale_comp_scheme or worker's current scheme)
+        var clientIsCommissionOnly = client.sale_comp_scheme ? client.sale_comp_scheme === 'commission_only' : isCommissionOnly;
+        
         var systemSize = client.system_size || 0;
         var m2 = systemSize >= 11600 ? m2Tier2 : m2Tier1;
         var tierLabel = systemSize >= 11600 ? 'Tier 2' : 'Tier 1';
-        var totalCommission = isCommissionOnly ? (m1Commission + m2) : fundedCommissionRate;
+        var totalCommission = clientIsCommissionOnly ? (m1Commission + m2) : fundedCommissionRate;
 
         var html = '<div class="modal-header"><button class="modal-back" id="closeClientModal">←</button>';
         html += '<div class="modal-title">' + client.first_name + ' ' + client.last_name + '</div></div>';
@@ -777,7 +802,7 @@
         html += '<div class="detail-section"><div class="detail-label">Email</div><div class="detail-value">' + (client.email || 'Not provided') + '</div></div>';
         html += '<div class="detail-section"><div class="detail-label">Phone</div><div class="detail-value">' + (client.phone || 'Not provided') + '</div></div>';
         html += '<div class="detail-section"><div class="detail-label">Sale Date</div><div class="detail-value">' + formatDate(client.sale_date) + '</div></div>';
-        if (isCommissionOnly) {
+        if (clientIsCommissionOnly) {
             html += '<div class="detail-section"><div class="detail-label">System Size</div><div class="detail-value">' + (systemSize ? systemSize + ' kW (' + tierLabel + ')' : 'Not set') + '</div></div>';
             html += '<div class="detail-section"><div class="detail-label">M1 Commission</div><div class="detail-value" style="color:var(--accent-cyan)">' + formatCurrency(m1Commission) + '</div></div>';
             html += '<div class="detail-section"><div class="detail-label">M2 Commission</div><div class="detail-value" style="color:var(--accent-green)">' + formatCurrency(m2) + '</div></div>';
