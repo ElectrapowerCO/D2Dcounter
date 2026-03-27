@@ -127,6 +127,7 @@
         .status-installation { background: rgba(251, 146, 60, 0.2); color: #fb923c; }
         .status-funded { background: var(--accent-green-dim); color: var(--accent-green); }
         .status-hold { background: rgba(255, 71, 87, 0.15); color: #ff4757; }
+        .status-cancelled { background: rgba(255, 71, 87, 0.2); color: #ff4757; }
 
         .counter-container { padding: 1rem; padding-bottom: calc(1rem + var(--safe-bottom)); }
         .view-toggle { display: flex; background: var(--bg-secondary); padding: 0.35rem; gap: 0.35rem; border-radius: 10px; margin-bottom: 1rem; }
@@ -335,10 +336,11 @@
         'engineering': 'Engineering',
         'permits': 'Permits',
         'installation': 'Installation',
-        'funded': 'Funded'
+        'funded': 'Funded',
+        'cancelled': 'Cancelled'
     };
 
-    var STATUS_ORDER = ['hold', 'contract_signed', 'survey_done', 'engineering', 'permits', 'installation', 'funded'];
+    var STATUS_ORDER = ['hold', 'contract_signed', 'survey_done', 'engineering', 'permits', 'installation', 'funded', 'cancelled'];
 
     // Get current date in Florida timezone (Eastern Time)
     function getFloridaDate() {
@@ -566,7 +568,7 @@
         
         var pendingSeatBonus = payments.filter(function(p) { return p.type === 'seat_bonus' && p.status === 'pending'; }).reduce(function(sum, p) { return sum + Number(p.amount); }, 0);
         var pendingCommissions = payments.filter(function(p) { return (p.type === 'project_commission' || p.type === 'm1_commission' || p.type === 'm2_commission') && p.status === 'pending'; }).reduce(function(sum, p) { return sum + Number(p.amount); }, 0);
-        var futureCommissions = clients.filter(function(c) { return c.status !== 'funded'; }).reduce(function(sum, c) { return sum + getClientCommission(c); }, 0);
+        var futureCommissions = clients.filter(function(c) { return c.status !== 'funded' && c.status !== 'cancelled'; }).reduce(function(sum, c) { return sum + getClientCommission(c); }, 0);
         var totalPaid = payments.filter(function(p) { return p.status === 'paid'; }).reduce(function(sum, p) { return sum + Number(p.amount); }, 0);
         var weeklyTotal = baseSalary + pendingSeatBonus;
         
@@ -597,7 +599,7 @@
         }
         html += '<div class="earning-card"><div class="earning-label">Seat Bonuses</div><div class="earning-value green">' + formatCurrency(pendingSeatBonus) + '</div><div class="earning-detail">' + formatCurrency(seatBonusRate) + ' per seat</div></div>';
         html += '<div class="earning-card"><div class="earning-label">Pending Commissions</div><div class="earning-value yellow">' + formatCurrency(pendingCommissions) + '</div><div class="earning-detail">Ready to pay</div></div>';
-        html += '<div class="earning-card"><div class="earning-label">Future Commissions</div><div class="earning-value cyan">' + formatCurrency(futureCommissions) + '</div><div class="earning-detail">' + clients.filter(function(c) { return c.status !== 'funded'; }).length + ' projects in progress</div></div>';
+        html += '<div class="earning-card"><div class="earning-label">Future Commissions</div><div class="earning-value cyan">' + formatCurrency(futureCommissions) + '</div><div class="earning-detail">' + clients.filter(function(c) { return c.status !== 'funded' && c.status !== 'cancelled'; }).length + ' projects in progress</div></div>';
         html += '</div>';
 
         // Total earned
@@ -662,11 +664,13 @@
         // Pending standard project commissions
         payments.filter(function(p) { return p.type === 'project_commission' && p.status === 'pending'; }).forEach(function(p) {
             var client = clients.find(function(c) { return c.id === p.reference_id; });
+            // Skip if client is cancelled
+            if (client && client.status === 'cancelled') return;
             pendingItems.push({ title: 'Project Commission', subtitle: client ? client.first_name + ' ' + client.last_name : 'Client', amount: p.amount, type: 'commission' });
         });
         
-        // Future commissions (not yet funded clients)
-        clients.filter(function(c) { return c.status !== 'funded'; }).forEach(function(c) {
+        // Future commissions (not yet funded clients, exclude cancelled)
+        clients.filter(function(c) { return c.status !== 'funded' && c.status !== 'cancelled'; }).forEach(function(c) {
             var commission = getClientCommission(c);
             var subtitle;
             if (isCommissionOnly) {
@@ -693,8 +697,9 @@
     }
 
     function renderClients(container) {
-        var activeClients = clients.filter(function(c) { return c.status !== 'funded'; });
+        var activeClients = clients.filter(function(c) { return c.status !== 'funded' && c.status !== 'cancelled'; });
         var fundedClients = clients.filter(function(c) { return c.status === 'funded'; });
+        var cancelledClients = clients.filter(function(c) { return c.status === 'cancelled'; });
         
         // Commission Only scheme values
         var isCommissionOnly = currentWorker.comp_scheme === 'commission_only';
