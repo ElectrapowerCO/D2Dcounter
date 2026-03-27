@@ -120,6 +120,7 @@
         .status-engineering { background: var(--accent-yellow-dim); color: var(--accent-yellow); }
         .status-permits { background: rgba(99, 102, 241, 0.2); color: #6366f1; }
         .status-installation { background: rgba(251, 146, 60, 0.2); color: #fb923c; }
+        .status-cancelled { background: rgba(255, 71, 87, 0.2); color: #ff4757; }
 
         /* Worker Avatar */
         .worker-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-purple), var(--accent-green)); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600; color: white; flex-shrink: 0; }
@@ -286,6 +287,7 @@
                             <option value="permits">Permits</option>
                             <option value="installation">Installation</option>
                             <option value="funded">Funded</option>
+                            <option value="cancelled">Cancelled</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -531,10 +533,11 @@
         'engineering': 'Engineering',
         'permits': 'Permits',
         'installation': 'Installation',
-        'funded': 'Funded'
+        'funded': 'Funded',
+        'cancelled': 'Cancelled'
     };
 
-    var STATUS_ORDER = ['hold', 'contract_signed', 'survey_done', 'engineering', 'permits', 'installation', 'funded'];
+    var STATUS_ORDER = ['hold', 'contract_signed', 'survey_done', 'engineering', 'permits', 'installation', 'funded', 'cancelled'];
 
     function getTodayString() { return new Date().toISOString().split('T')[0]; }
     function getFirstDayOfMonth() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]; }
@@ -1678,8 +1681,8 @@
     }
 
     function renderBluenergy(container) {
-        // Filter clients with system_size and ppw
-        var projectClients = clients.filter(function(c) { return c.system_size && c.ppw; });
+        // Filter clients with system_size and ppw, exclude cancelled
+        var projectClients = clients.filter(function(c) { return c.system_size && c.ppw && c.status !== 'cancelled'; });
         var fundedClients = projectClients.filter(function(c) { return c.status === 'funded'; });
         var pendingClients = projectClients.filter(function(c) { return c.status !== 'funded'; });
         
