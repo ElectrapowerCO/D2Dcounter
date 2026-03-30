@@ -947,15 +947,16 @@
         if (payments.length > 0) {
             html += '<div class="section-title">Payment History</div><div class="history-list">';
             payments.forEach(function(p) {
-                var typeLabels = { 'base_salary': 'Base Salary', 'seat_bonus': 'Seat Bonus', 'project_commission': 'Project Commission' };
+                var typeLabels = { 'base_salary': 'Base Salary', 'seat_bonus': 'Seat Bonus', 'project_commission': 'Project Commission', 'm1_commission': 'M1 Commission', 'm2_commission': 'M2 Commission' };
                 var date = p.paid_at ? p.paid_at.split('T')[0] : p.created_at.split('T')[0];
-                var typeLabel = typeLabels[p.type];
+                var typeLabel = typeLabels[p.type] || p.type;
                 
-                // Add client name for project commissions
-                if (p.type === 'project_commission' && p.reference_id) {
+                // Add client name for commissions with reference_id
+                if ((p.type === 'project_commission' || p.type === 'm1_commission' || p.type === 'm2_commission') && p.reference_id) {
                     var client = clients.find(function(c) { return c.id === p.reference_id; });
                     if (client) {
-                        typeLabel = 'Commission: ' + client.first_name + ' ' + client.last_name;
+                        var commLabel = p.type === 'm1_commission' ? 'M1' : p.type === 'm2_commission' ? 'M2' : 'Commission';
+                        typeLabel = commLabel + ': ' + client.first_name + ' ' + client.last_name;
                     }
                 }
                 
